@@ -65,19 +65,19 @@ public class QuicClient {
             connection.connect();
 
             QuicStream quicStream = connection.createStream(true);
-
+            quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_HELLO_HEADER);
             quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO);
             quicStream.getOutputStream().close();
 
-            byte[] respBuffer = new byte[QuicTransportConsts.PROTOCOL_V1_SERVER_ACK.length];
+            byte[] respBuffer = new byte[QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length];
             int respRead = quicStream.getInputStream().read(respBuffer);
 
-            if (respRead != QuicTransportConsts.PROTOCOL_V1_SERVER_ACK.length) {
+            if (respRead != QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length) {
                 returnString = "Wrong response length for protocol ack.";
             }
 
-            for (int i = 0; i < QuicTransportConsts.PROTOCOL_V1_SERVER_ACK.length; i++) {
-                if (respBuffer[i] != QuicTransportConsts.PROTOCOL_V1_SERVER_ACK[i]) {
+            for (int i = 0; i < QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length; i++) {
+                if (respBuffer[i] != QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK[i]) {
 
                     returnString = "Wrong response bytes for protocol ack.";
                     break;
@@ -112,6 +112,7 @@ public class QuicClient {
             }
             QuicStream quicStream = connection.createStream(true);
             byte[] dataLenBytes = QTHelpers.intToBytes(payload.length);
+            quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_DATA_HEADER);
             quicStream.getOutputStream().write(dataLenBytes);
             quicStream.getOutputStream().write(payload);
             quicStream.getOutputStream().write(expectedHash);

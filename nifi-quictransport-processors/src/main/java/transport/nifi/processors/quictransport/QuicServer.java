@@ -105,37 +105,65 @@ public class QuicServer {
 
         private byte[] handleEchoRequest(QuicStream quicStream) {
             try {
-                byte[] intHeader = new byte[4];
-                // Note that this implementation is not safe to use in the wild, as attackers can crash the server by sending arbitrary large requests.
-                int amountRead = quicStream.getInputStream().read(intHeader);
-                if(amountRead != 4){
-                    quicStream.getOutputStream().close();
-                    throw new IOException("Stream failed to provide header bytes.");
-                }
-                int payloadSize = QTHelpers.bytesToInt(intHeader);
-                if(payloadSize <= 0 || payloadSize > QuicTransportConsts.MAX_V1_SIZE){
+                byte[] connectionHeader = new byte[2];
+                int amountRead = quicStream.getInputStream().read(connectionHeader);
+
+                if(amountRead != 2){
                     quicStream.getOutputStream().close();
                     throw new IOException("Header bytes are not in valid V1 range.");
                 }
-                byte[] payloadBytes = new byte[payloadSize];
-                int bytesRead = quicStream.getInputStream().read(payloadBytes);
-                if(bytesRead != payloadSize){
-                    throw new IOException("Did not receive full bytes in payload body.");
-                }
-                byte[] hashBytes = new byte[QuicTransportConsts.V1_HASH_SIZE];
-                bytesRead = quicStream.getInputStream().read(hashBytes);
-                if(bytesRead != QuicTransportConsts.V1_HASH_SIZE){
-                    throw new IOException("Did not receive full hash after payload body.");
-                }
-                MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                byte[] generatedHash = digest.digest(payloadBytes);
-                // Return bytes regardless
-                quicStream.getOutputStream().write(generatedHash);
-                quicStream.getOutputStream().close();
+                if(QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_HELLO_HEADER)){
+                    byte[] helloBytes = new byte[QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO.length];
+                    // Note that this implementation is not safe to use in the wild, as attackers can crash the server by sending arbitrary large requests.
+                    amountRead = quicStream.getInputStream().read(helloBytes);
+                    if(amountRead != helloBytes.length){
+                        quicStream.getOutputStream().close();
+                        throw new IOException("Client hello not valid.");
+                    }
+                    if(QTHelpers.bytesMatch(helloBytes, QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO)){
+                        quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK);
+                    }
+                    quicStream.getOutputStream().close();
+                    return null;
+                } else if (QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_DATA_HEADER)) {
+                    byte[] intHeader = new byte[4];
+                    // Note that this implementation is not safe to use in the wild, as attackers can crash the server by sending arbitrary large requests.
+                    amountRead = quicStream.getInputStream().read(intHeader);
+                    if(amountRead != 4){
+                        quicStream.getOutputStream().close();
+                        throw new IOException("Stream failed to provide header bytes.");
+                    }
+                    int payloadSize = QTHelpers.bytesToInt(intHeader);
+                    if(payloadSize <= 0 || payloadSize > QuicTransportConsts.MAX_V1_SIZE){
+                        quicStream.getOutputStream().close();
+                        throw new IOException("Header bytes are not in valid V1 range.");
+                    }
+                    byte[] payloadBytes = new byte[payloadSize];
+                    int bytesRead = quicStream.getInputStream().read(payloadBytes);
+                    if(bytesRead != payloadSize){
+                        quicStream.getOutputStream().close();
+                        throw new IOException("Did not receive full bytes in payload body.");
+                    }
+                    byte[] hashBytes = new byte[QuicTransportConsts.V1_HASH_SIZE];
+                    bytesRead = quicStream.getInputStream().read(hashBytes);
+                    if(bytesRead != QuicTransportConsts.V1_HASH_SIZE){
+                        quicStream.getOutputStream().close();
+                        throw new IOException("Did not receive full hash after payload body.");
+                    }
+                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                    byte[] generatedHash = digest.digest(payloadBytes);
+                    // Return bytes regardless
+                    quicStream.getOutputStream().write(generatedHash);
+                    quicStream.getOutputStream().close();
 
-                if(QTHelpers.bytesMatch(generatedHash, hashBytes)){
-                    return payloadBytes;
+                    if(QTHelpers.bytesMatch(generatedHash, hashBytes)){
+                        return payloadBytes;
+                    }
+
+                } else {
+                    quicStream.getOutputStream().close();
                 }
+
             } catch (IOException e) {
                 log.error("Reading quic stream failed", e);
             } catch (NoSuchAlgorithmException e) {
