@@ -1,10 +1,10 @@
 package transport.nifi.processors.quictransport;
 
-import tech.kwik.core.QuicClientConnection;
-import tech.kwik.core.QuicStream;
-import tech.kwik.core.log.Logger;
-import tech.kwik.core.log.NullLogger;
-import tech.kwik.core.log.SysOutLogger;
+import kwik.core.src.main.java.tech.kwik.core.QuicClientConnection;
+import kwik.core.src.main.java.tech.kwik.core.QuicStream;
+import kwik.core.src.main.java.tech.kwik.core.log.Logger;
+import kwik.core.src.main.java.tech.kwik.core.log.NullLogger;
+import kwik.core.src.main.java.tech.kwik.core.log.SysOutLogger;
 
 import java.io.IOException;
 import java.net.SocketException;
