@@ -21,6 +21,7 @@ public class QuicServer {
     private int connectionPort = -1;
     private String protocolName;
     private boolean logPackets = false;
+    private ServerConnector serverConnector = null;
 
     public QuicServer(String certificatePath, String keyPath, int connectionPort, String protocolName,
                       boolean logPackets) {
@@ -42,7 +43,7 @@ public class QuicServer {
                 .maxOpenPeerInitiatedBidirectionalStreams(12)  // Mandatory setting to maximize concurrent streams on a connection.
                 .build();
 
-        ServerConnector serverConnector = ServerConnector.builder()
+        this.serverConnector = ServerConnector.builder()
                 .withPort(connectionPort)
                 .withCertificate(new FileInputStream(certificatePath), new FileInputStream(keyPath))
                 .withConfiguration(serverConnectionConfig)
@@ -51,13 +52,17 @@ public class QuicServer {
 
         registerProtocolHandler(serverConnector, log, this.protocolName);
 
-        serverConnector.start();
+        this.serverConnector.start();
 
         log.info("Started echo server on port " + connectionPort);
     }
 
     private static void registerProtocolHandler(ServerConnector serverConnector, Logger log, String protocolName) {
         serverConnector.registerApplicationProtocol(protocolName, new EchoProtocolConnectionFactory(log));
+    }
+
+    public void stop(){
+        this.serverConnector.close();
     }
 
     /**
