@@ -20,6 +20,7 @@ public class QuicClient {
     private boolean enforceCertificateCheck = false;
     private boolean verifiedRemote = false;
     private QuicClientConnection connection = null;
+    private Logger log = null;
 
     public QuicClient(String serverUri, int connectionPort, String protocolName,
                       boolean logPackets, boolean enforceCertificateCheck) {
@@ -30,40 +31,65 @@ public class QuicClient {
         this.enforceCertificateCheck = enforceCertificateCheck;
     }
 
-    public String init() throws SocketException, UnknownHostException {
-        Logger log = new NullLogger();
-
-        // Use a real logger if we are debugging
-        if (this.logPackets) {
-            log = new SysOutLogger();
-        }
-        log.logPackets(this.logPackets);
-
-        connection = null;
+    private QuicClientConnection buildConnection() throws SocketException, UnknownHostException {
         String connectionUri = this.protocolName + "://" + this.serverUri + ":" + this.connectionPort;
+        QuicClientConnection builtCon = null;
         if (this.enforceCertificateCheck) {
-            connection = QuicClientConnection.newBuilder()
+            builtCon = QuicClientConnection.newBuilder()
                     .uri(URI.create(connectionUri))
                     .applicationProtocol(this.protocolName)
                     .logger(log)
                     .build();
         } else {
-            connection = QuicClientConnection.newBuilder()
+            builtCon = QuicClientConnection.newBuilder()
                     .uri(URI.create(connectionUri))
                     .applicationProtocol(this.protocolName)
                     .noServerCertificateCheck()
                     .logger(log)
                     .build();
         }
+        return builtCon;
+    }
+
+    public String init() throws SocketException, UnknownHostException {
+        log = new NullLogger();
+        // Use a real logger if we are debugging
+        if (this.logPackets) {
+            log = new SysOutLogger();
+        }
+        log.logPackets(this.logPackets);
+
+        connection = buildConnection();
 
         return this.verifyRemote();
     }
 
-    private String verifyRemote(){
-        String returnString = null;
+    private boolean reconnect() {
+        if(connection.isConnected())
+            return true;
         try {
             connection.connect();
+        } catch (IllegalStateException e) {
+            try {
+                connection = buildConnection();
+                connection.connect();
+            } catch (IOException ex) {
+                return false;
+            }
 
+        } catch (IOException excs){
+            return false;
+        }
+        return true;
+    }
+
+
+    private String verifyRemote() {
+        String returnString = null;
+        if (!reconnect()) {
+            return "Reconnection failed.";
+        }
+        try {
             QuicStream quicStream = connection.createStream(true);
             quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_HELLO_HEADER);
             quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO);
@@ -86,22 +112,19 @@ public class QuicClient {
             if (returnString == null) {
                 this.verifiedRemote = true;
             }
+            quicStream.abortReading(1);
+            quicStream.getInputStream().close();
         } catch (IOException exc) {
             returnString = "Unable to verify remote host on startup.";
-        } finally {
-            connection.closeAndWait();
         }
         return returnString;
+
     }
 
     // TODO update to allow parts?
     public String send(byte[] payload) {
-        if(!verifiedRemote){
-            String verifyString = this.verifyRemote();
-            if(verifyString != null){
-                return verifyString;
-            }
-            this.verifiedRemote = true;
+        if(!reconnect()){
+            return "Could not connect to endpoint";
         }
 
         try {
@@ -123,10 +146,8 @@ public class QuicClient {
             if (quicStream.getInputStream().read(responseHash) != expectedHash.length) {
                 return "Response hash the incorrect length.";
             }
-            for (int i = 0; i < expectedHash.length; i++) {
-                if (responseHash[i] != expectedHash[i]) {
-                    return "Wrong response bytes in server response.";
-                }
+            if(!QTHelpers.bytesMatch(responseHash, expectedHash)){
+                return "Wrong response bytes in server response.";
             }
             // This means we can duplicate but not lose data.
             return null;

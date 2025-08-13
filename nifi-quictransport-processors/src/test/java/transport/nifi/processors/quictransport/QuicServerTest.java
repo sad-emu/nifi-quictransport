@@ -18,9 +18,12 @@ package transport.nifi.processors.quictransport;
 
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.validation.constraints.AssertTrue;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -45,7 +48,32 @@ public class QuicServerTest {
                 "testProto", false);
         server.init();
         server.stop();
-
     }
+
+    @Test
+    public void testServerSend() throws Exception {
+        int testPort = 8881;
+        String protoName = "testProto";
+        String cert = Paths.get(
+                getClass().getClassLoader().getResource("server.crt").toURI()).toString();
+        String key = Paths.get(
+                getClass().getClassLoader().getResource("server.key").toURI()).toString();
+        QuicServer server = new QuicServer(cert,
+                key, testPort,protoName
+                , false);
+        server.init();
+
+        QuicClient client = new QuicClient("localhost", testPort, protoName, false, false);
+
+        String dataToSend = "TestData blah";
+        client.init();
+        for(int i = 0; i < 100; i++){
+            String resp = client.send(dataToSend.getBytes(StandardCharsets.UTF_8));
+            Assertions.assertEquals(resp, null);
+        }
+
+        server.stop();
+    }
+
 
 }
