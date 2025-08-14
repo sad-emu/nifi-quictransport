@@ -33,7 +33,7 @@ public class QuicServerTest {
 
     @BeforeEach
     public void init() {
-        testRunner = TestRunners.newTestRunner(QuicTransport.class);
+        testRunner = TestRunners.newTestRunner(QuicTransportSender.class);
     }
 
     @Test

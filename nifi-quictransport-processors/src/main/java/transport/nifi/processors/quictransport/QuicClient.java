@@ -21,6 +21,7 @@ public class QuicClient {
     private boolean verifiedRemote = false;
     private QuicClientConnection connection = null;
     private Logger log = null;
+    private final Object lock = new Object();
 
     public QuicClient(String serverUri, int connectionPort, String protocolName,
                       boolean logPackets, boolean enforceCertificateCheck) {
@@ -51,79 +52,82 @@ public class QuicClient {
         return builtCon;
     }
 
-    public String init() throws SocketException, UnknownHostException {
+    public boolean init() throws SocketException, UnknownHostException {
         log = new NullLogger();
         // Use a real logger if we are debugging
         if (this.logPackets) {
             log = new SysOutLogger();
         }
         log.logPackets(this.logPackets);
+        synchronized (this.lock){
+            connection = buildConnection();
+        }
 
-        connection = buildConnection();
-
-        return this.verifyRemote();
+        return connection.isConnected();//this.verifyRemote();
     }
 
-    private boolean reconnect() {
-        if(connection.isConnected())
-            return true;
-        try {
-            connection.connect();
-        } catch (IllegalStateException e) {
+    private boolean reconnected() {
+        synchronized (this.lock){
+            if(connection.isConnected())
+                return true;
             try {
-                connection = buildConnection();
                 connection.connect();
-            } catch (IOException ex) {
+            } catch (IllegalStateException e) {
+                try {
+                    connection = buildConnection();
+                    connection.connect();
+                } catch (IOException ex) {
+                    return false;
+                }
+
+            } catch (IOException excs){
                 return false;
             }
-
-        } catch (IOException excs){
-            return false;
+            return true;
         }
-        return true;
     }
 
 
-    private String verifyRemote() {
-        String returnString = null;
-        if (!reconnect()) {
-            return "Reconnection failed.";
-        }
-        try {
-            QuicStream quicStream = connection.createStream(true);
-            quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_HELLO_HEADER);
-            quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO);
-            quicStream.getOutputStream().close();
+//    private String verifyRemote() {
+//        String returnString = null;
+//        if (!reconnected()) {
+//            return "Reconnection failed.";
+//        }
+//        try {
+//            QuicStream quicStream = connection.createStream(true);
+//            quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_HELLO_HEADER);
+//            quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO);
+//            quicStream.getOutputStream().close();
+//
+//            byte[] respBuffer = new byte[QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length];
+//            int respRead = quicStream.getInputStream().read(respBuffer);
+//
+//            if (respRead != QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length) {
+//                returnString = "Wrong response length for protocol ack.";
+//            }
+//
+//            for (int i = 0; i < QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length; i++) {
+//                if (respBuffer[i] != QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK[i]) {
+//
+//                    returnString = "Wrong response bytes for protocol ack.";
+//                    break;
+//                }
+//            }
+//            if (returnString == null) {
+//                this.verifiedRemote = true;
+//            }
+//            quicStream.abortReading(1);
+//            quicStream.getInputStream().close();
+//        } catch (IOException exc) {
+//            returnString = "Unable to verify remote host on startup.";
+//        }
+//        return returnString;
+//
+//    }
 
-            byte[] respBuffer = new byte[QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length];
-            int respRead = quicStream.getInputStream().read(respBuffer);
-
-            if (respRead != QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length) {
-                returnString = "Wrong response length for protocol ack.";
-            }
-
-            for (int i = 0; i < QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK.length; i++) {
-                if (respBuffer[i] != QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK[i]) {
-
-                    returnString = "Wrong response bytes for protocol ack.";
-                    break;
-                }
-            }
-            if (returnString == null) {
-                this.verifiedRemote = true;
-            }
-            quicStream.abortReading(1);
-            quicStream.getInputStream().close();
-        } catch (IOException exc) {
-            returnString = "Unable to verify remote host on startup.";
-        }
-        return returnString;
-
-    }
-
-    // TODO update to allow parts?
+    // TODO update to streams
     public String send(byte[] payload) {
-        if(!reconnect()){
+        if(!reconnected()){
             return "Could not connect to endpoint";
         }
 

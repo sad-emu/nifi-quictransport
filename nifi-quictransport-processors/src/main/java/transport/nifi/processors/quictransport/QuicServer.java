@@ -117,17 +117,18 @@ public class QuicServer {
                 if(amountRead != 2){
                     throw new IOException("Header bytes are not in valid V1 range.");
                 }
-                if(QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_HELLO_HEADER)){
-                    byte[] helloBytes = new byte[QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO.length];
-                    // Note that this implementation is not safe to use in the wild, as attackers can crash the server by sending arbitrary large requests.
-                    amountRead = quicStream.getInputStream().read(helloBytes);
-                    if(amountRead != helloBytes.length){
-                        throw new IOException("Client hello not valid.");
-                    }
-                    if(QTHelpers.bytesMatch(helloBytes, QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO)){
-                        quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK);
-                    }
-                } else if (QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_DATA_HEADER)) {
+//                if(QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_HELLO_HEADER)){
+//                    byte[] helloBytes = new byte[QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO.length];
+//                    // Note that this implementation is not safe to use in the wild, as attackers can crash the server by sending arbitrary large requests.
+//                    amountRead = quicStream.getInputStream().read(helloBytes);
+//                    if(amountRead != helloBytes.length){
+//                        throw new IOException("Client hello not valid.");
+//                    }
+//                    if(QTHelpers.bytesMatch(helloBytes, QuicTransportConsts.PROTOCOL_V1_CLIENT_HELLO)){
+//                        quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_SERVER_HELLO_ACK);
+//                    }
+//                } else
+                if (QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_DATA_HEADER)) {
                     byte[] intHeader = new byte[4];
                     // Note that this implementation is not safe to use in the wild, as attackers can crash the server by sending arbitrary large requests.
                     amountRead = quicStream.getInputStream().read(intHeader);
