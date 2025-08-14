@@ -32,7 +32,10 @@ import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.ProcessorInitializationContext;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.util.StandardValidators;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -45,6 +48,8 @@ import java.util.Set;
 @ReadsAttributes({@ReadsAttribute(attribute="", description="")})
 @WritesAttributes({@WritesAttribute(attribute="", description="")})
 public class QuicTransportSender extends AbstractProcessor {
+
+    private static final Logger logger = LoggerFactory.getLogger(QuicTransportSender.class);
 
     private QuicClient qtc = null;
     private static final boolean LOG_PACKETS = false;
@@ -136,13 +141,18 @@ public class QuicTransportSender extends AbstractProcessor {
     @OnScheduled
     public void onScheduled(final ProcessContext context) {
         if(this.qtc == null){
+            logger.info("Quic client null. Trying to initialise.");
             String uri = context.getProperty(URI).getValue();
             int port = context.getProperty(PORT).asInteger();
             String proto = context.getProperty(PROTOCOL).getValue();
             boolean certCheck = context.getProperty(CERT_CHECK).asBoolean();
             this.qtc = new QuicClient(uri, port, proto, LOG_PACKETS, certCheck);
-            try{
-            this.qtc.init()
+            try {
+                this.qtc.init();
+                logger.info("Quic client initialised.");
+            } catch (Exception exc){
+                logger.warn("Exception thrown trying to init quic client. " + exc.getMessage());
+            }
         }
     }
 
@@ -152,6 +162,13 @@ public class QuicTransportSender extends AbstractProcessor {
         if (flowFile == null) {
             return;
         }
-        // TODO implement
+        try {
+            byte[] serialisedFile = QTHelpers.serializeFlowFile(session, flowFile);
+            qtc.send(serialisedFile);
+            session.transfer(flowFile, SUCCESS);
+        } catch (IOException e) {
+            logger.error("Failed converting flowfile to stream. " + e);
+            session.transfer(flowFile, FAILURE);
+        }
     }
 }

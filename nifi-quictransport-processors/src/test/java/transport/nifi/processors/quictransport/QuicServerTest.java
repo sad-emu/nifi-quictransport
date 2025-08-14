@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.validation.constraints.AssertTrue;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -68,8 +69,11 @@ public class QuicServerTest {
         String dataToSend = "TestData blah";
         client.init();
         for(int i = 0; i < 100; i++){
-            String resp = client.send(dataToSend.getBytes(StandardCharsets.UTF_8));
-            Assertions.assertEquals(resp, null);
+            try {
+                client.send(dataToSend.getBytes(StandardCharsets.UTF_8));
+            } catch (IOException exc){
+                Assertions.fail("IO Exception caught sending data " + exc.getMessage());
+            }
         }
 
         server.stop();

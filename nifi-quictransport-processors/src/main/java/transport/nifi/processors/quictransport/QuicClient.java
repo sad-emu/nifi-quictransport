@@ -18,7 +18,7 @@ public class QuicClient {
     private int connectionPort = -1;
     private boolean logPackets = false;
     private boolean enforceCertificateCheck = false;
-    private boolean verifiedRemote = false;
+    //private boolean verifiedRemote = false;
     private QuicClientConnection connection = null;
     private Logger log = null;
     private final Object lock = new Object();
@@ -126,16 +126,16 @@ public class QuicClient {
 //    }
 
     // TODO update to streams
-    public String send(byte[] payload) {
+    public void send(byte[] payload) throws IOException {
         if(!reconnected()){
-            return "Could not connect to endpoint";
+            throw new IOException("Could not connect to endpoint");
         }
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] expectedHash = digest.digest(payload);
             if(expectedHash.length != QuicTransportConsts.V1_HASH_SIZE){
-                return "Sending hash is the wrong number of bytes for V1";
+                throw new IOException("Sending hash is the wrong number of bytes for V1");
             }
             QuicStream quicStream = connection.createStream(true);
             byte[] dataLenBytes = QTHelpers.intToBytes(payload.length);
@@ -148,16 +148,16 @@ public class QuicClient {
             byte[] responseHash = new byte[expectedHash.length];
 
             if (quicStream.getInputStream().read(responseHash) != expectedHash.length) {
-                return "Response hash the incorrect length.";
+                throw new IOException("Response hash the incorrect length.");
             }
             if(!QTHelpers.bytesMatch(responseHash, expectedHash)){
-                return "Wrong response bytes in server response.";
+                throw new IOException("Wrong response bytes in server response.");
             }
             // This means we can duplicate but not lose data.
-            return null;
+            return ;
         } catch (Exception exc){
-            this.verifiedRemote = false;
-            return "Error in send. " + exc.getMessage();
+            //this.verifiedRemote = false;
+            throw new IOException("Error in send. " + exc.getMessage());
         }
     }
 }
