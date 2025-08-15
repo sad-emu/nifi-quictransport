@@ -66,7 +66,8 @@ public class QTHelpers {
         return out.toByteArray();
     }
 
-    public static FlowFile deserializeFlowFile(ProcessSession session, byte[] data) throws IOException {
+    public static FlowFile deserializeFlowFile(ProcessSession session,
+                                               FlowFile flowFile, byte[] data) throws IOException {
         ByteArrayInputStream in = new ByteArrayInputStream(data);
         DataInputStream dataIn = new DataInputStream(in);
 
@@ -85,7 +86,6 @@ public class QTHelpers {
         dataIn.readFully(contentBytes);
 
         // Create FlowFile
-        FlowFile flowFile = session.create();
         flowFile = session.putAllAttributes(flowFile, attributes);
 
         flowFile = session.write(flowFile, out -> {

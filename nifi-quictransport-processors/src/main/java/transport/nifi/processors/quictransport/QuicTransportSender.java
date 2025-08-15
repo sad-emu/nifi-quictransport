@@ -86,7 +86,7 @@ public class QuicTransportSender extends AbstractProcessor {
             .description("Must be the same on the sender and receiver.")
             .required(true)
             .defaultValue("quicnifiv1")
-            .addValidator(StandardValidators.CHARACTER_SET_VALIDATOR)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
 //    public static final PropertyDescriptor MTU = new PropertyDescriptor
@@ -167,7 +167,7 @@ public class QuicTransportSender extends AbstractProcessor {
             qtc.send(serialisedFile);
             session.transfer(flowFile, SUCCESS);
         } catch (IOException e) {
-            logger.error("Failed converting flowfile to stream. " + e);
+            logger.error("Exception in QuicTransportSender onTrigger: " + e);
             session.transfer(flowFile, FAILURE);
         }
     }

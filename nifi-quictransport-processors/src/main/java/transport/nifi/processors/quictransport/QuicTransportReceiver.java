@@ -24,6 +24,7 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
+import org.apache.nifi.annotation.lifecycle.OnStopped;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.*;
@@ -32,18 +33,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Tags({"quic", "posthttp", "postquic", "transport", "receiver"})
 @CapabilityDescription("Used to receive data from a QuicTransportSender using the QUIC protocol.")
 @SeeAlso({})
 @ReadsAttributes({@ReadsAttribute(attribute="", description="")})
 @WritesAttributes({@WritesAttribute(attribute="", description="")})
-public class QuicTransportReceiver extends AbstractProcessor {
+public class QuicTransportReceiver extends AbstractSessionFactoryProcessor {
 
     private static final Logger logger = LoggerFactory.getLogger(QuicTransportReceiver.class);
-
     private QuicServer qts = null;
     private static final boolean LOG_PACKETS = false;
+    private final AtomicReference<ProcessSessionFactory> sessionFactoryReference = new AtomicReference<>();
 
     public static final PropertyDescriptor CERT_PATH = new PropertyDescriptor
             .Builder().name("CERT_PATH")
@@ -77,7 +80,7 @@ public class QuicTransportReceiver extends AbstractProcessor {
             .description("Must be the same on the sender and receiver.")
             .required(true)
             .defaultValue("quicnifiv1")
-            .addValidator(StandardValidators.CHARACTER_SET_VALIDATOR)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
     public static final Relationship SUCCESS = new Relationship.Builder()
@@ -121,8 +124,8 @@ public class QuicTransportReceiver extends AbstractProcessor {
             String proto = context.getProperty(PROTOCOL).getValue();
             String certPath = context.getProperty(CERT_PATH).getValue();
             String keyPath = context.getProperty(KEY_PATH).getValue();
-
-            this.qts = new QuicServer(certPath, keyPath, port, proto, LOG_PACKETS);
+            this.qts = new QuicServer(certPath, keyPath, port, proto, LOG_PACKETS, logger);
+            this.qts.setFactoryRef(this.sessionFactoryReference);
             try {
                 this.qts.init();
                 logger.info("Quic server initialised.");
@@ -132,15 +135,18 @@ public class QuicTransportReceiver extends AbstractProcessor {
         }
     }
 
-    // TODO
-    // Change server to be passed callback func from here for new thread
-
     @Override
-    public void onTrigger(final ProcessContext context, final ProcessSession session) {
-        FlowFile flowFile = session.get();
-        if (flowFile == null) {
-            return;
+    public void onTrigger(final ProcessContext context, final ProcessSessionFactory sessionFactory) {
+        sessionFactoryReference.compareAndSet(null, sessionFactory);
+        context.yield();
+    }
+
+    @OnStopped
+    public void shutdownHttpServer() {
+        try{
+            this.qts.stop();
+        }catch (Exception exc){
+            logger.error("Failed to stop QuicServer. " + exc.getMessage());
         }
-        // TODO implement
     }
 }

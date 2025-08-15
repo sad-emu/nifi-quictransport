@@ -148,11 +148,14 @@ public class QuicClient {
             byte[] responseHash = new byte[expectedHash.length];
 
             if (quicStream.getInputStream().read(responseHash) != expectedHash.length) {
+                quicStream.getInputStream().close();
                 throw new IOException("Response hash the incorrect length.");
             }
             if(!QTHelpers.bytesMatch(responseHash, expectedHash)){
+                quicStream.getInputStream().close();
                 throw new IOException("Wrong response bytes in server response.");
             }
+            quicStream.getInputStream().close();
             // This means we can duplicate but not lose data.
             return ;
         } catch (Exception exc){
