@@ -35,7 +35,7 @@ import java.util.List;
 
 abstract public class QuicPacket {
 
-    protected static final int MAX_PACKET_SIZE = 1500;
+    protected static final int MAX_PACKET_SIZE = 9000;
 
     protected Version quicVersion;
     protected long packetNumber = -1;

@@ -20,6 +20,7 @@ public class QuicClient {
     private String serverUri = null;
     private String protocolName = null;
     private int connectionPort = -1;
+    private int mtu = -1;
     private boolean logPackets = false;
     private boolean enforceCertificateCheck = false;
     //private boolean verifiedRemote = false;
@@ -28,12 +29,13 @@ public class QuicClient {
     private final Object lock = new Object();
 
     public QuicClient(String serverUri, int connectionPort, String protocolName,
-                      boolean logPackets, boolean enforceCertificateCheck) {
+                      boolean logPackets, boolean enforceCertificateCheck, int mtu) {
         this.serverUri = serverUri;
         this.connectionPort = connectionPort;
         this.protocolName = protocolName;
         this.logPackets = logPackets;
         this.enforceCertificateCheck = enforceCertificateCheck;
+        this.mtu = mtu;
     }
 
     private QuicClientConnection buildConnection() throws SocketException, UnknownHostException {
@@ -44,15 +46,16 @@ public class QuicClient {
                     .uri(URI.create(connectionUri))
                     .applicationProtocol(this.protocolName)
                     .logger(log)
-                    .build();
+                    .build(this.mtu);
         } else {
             builtCon = QuicClientConnection.newBuilder()
                     .uri(URI.create(connectionUri))
                     .applicationProtocol(this.protocolName)
                     .noServerCertificateCheck()
                     .logger(log)
-                    .build();
+                    .build(this.mtu);
         }
+
         return builtCon;
     }
 

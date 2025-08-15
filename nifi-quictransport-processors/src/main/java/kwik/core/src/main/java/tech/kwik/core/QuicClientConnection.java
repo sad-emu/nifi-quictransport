@@ -77,7 +77,7 @@ public interface QuicClientConnection extends QuicConnection {
 
     interface Builder {
 
-        QuicClientConnection build() throws SocketException, UnknownHostException;
+        QuicClientConnection build(int mtu) throws SocketException, UnknownHostException;
 
         Builder applicationProtocol(String applicationProtocol);
 

@@ -48,7 +48,7 @@ public class DatagramFrame extends QuicFrame {
     }
 
     public static int getMaxMinimalFrameSize() {
-        return 1 + VariableLengthInteger.bytesNeeded(1500);
+        return 1 + VariableLengthInteger.bytesNeeded(9000);
     }
 
     @Override

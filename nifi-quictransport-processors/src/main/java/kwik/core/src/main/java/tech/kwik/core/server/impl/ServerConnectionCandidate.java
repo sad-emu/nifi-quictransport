@@ -109,10 +109,11 @@ public class ServerConnectionCandidate implements ServerConnectionProxy, Datagra
     private final List<InitialPacket> bufferedInitialPackets = new ArrayList<>();
     private int bufferedDatagramDataSize;
     private volatile boolean inError;
+    private int forcedMTUSize = -1;
 
 
     public ServerConnectionCandidate(Context context, Version version, InetSocketAddress clientAddress, byte[] scid, byte[] dcid,
-                                     ServerConnectionFactory serverConnectionFactory, ServerConnectionRegistry connectionRegistry, Logger log) {
+                                     ServerConnectionFactory serverConnectionFactory, ServerConnectionRegistry connectionRegistry, Logger log, int forcedMTUSize) {
         this.executor = context.getSharedServerExecutor();
         this.scheduledExecutor = context.getSharedScheduledExecutor();
         this.quicVersion = version;
@@ -122,6 +123,7 @@ public class ServerConnectionCandidate implements ServerConnectionProxy, Datagra
         this.serverConnectionFactory = serverConnectionFactory;
         this.connectionRegistry = connectionRegistry;
         this.log = log;
+        this.forcedMTUSize = forcedMTUSize;
 
         filterChain =
                 new ClientAddressFilter(clientAddress, log,
@@ -198,7 +200,7 @@ public class ServerConnectionCandidate implements ServerConnectionProxy, Datagra
 
             // Packet is valid. This is the moment to create a real server connection and continue processing.
             if (registeredConnection == null) {
-                createAndRegisterServerConnection(initialPacket, metaData, data, bufferedDatagramDataSize);
+                createAndRegisterServerConnection(initialPacket, metaData, data, bufferedDatagramDataSize, forcedMTUSize);
                 cleanupTask.cancel(true);
             }
         }
@@ -266,14 +268,15 @@ public class ServerConnectionCandidate implements ServerConnectionProxy, Datagra
         }
     }
 
-    private void createAndRegisterServerConnection(InitialPacket initialPacket, PacketMetaData metaData, ByteBuffer datagramData, int receivedDataSize) {
+    private void createAndRegisterServerConnection(InitialPacket initialPacket, PacketMetaData metaData, ByteBuffer datagramData, int receivedDataSize,
+                                                   int forcedMTUSize) {
         Version quicVersion = initialPacket.getVersion();
         byte[] originalDcid = initialPacket.getDestinationConnectionId();
 
         registrationLock.lock();
         try {
             if (!closed) {
-                ServerConnectionImpl connection = serverConnectionFactory.createNewConnection(quicVersion, clientAddress, initialPacket.getSourceConnectionId(), originalDcid, null);
+                ServerConnectionImpl connection = serverConnectionFactory.createNewConnection(quicVersion, clientAddress, initialPacket.getSourceConnectionId(), originalDcid, null, forcedMTUSize);
 
                 // Pass the initial packet for processing, so it is processed on the server thread (enabling thread confinement concurrency strategy)
                 ServerConnectionProxy connectionThread = serverConnectionFactory.createServerConnectionProxy(connection, bufferedInitialPackets, datagramData, metaData);

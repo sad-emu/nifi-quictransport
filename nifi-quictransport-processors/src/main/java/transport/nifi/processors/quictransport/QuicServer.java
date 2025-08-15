@@ -30,6 +30,7 @@ public class QuicServer {
     private String certificatePath = null;
     private String keyPath = null;
     private int connectionPort = -1;
+    private  int maxStreams = -1;
     private String protocolName;
     private boolean logPackets = false;
     private ServerConnector serverConnector = null;
@@ -37,13 +38,14 @@ public class QuicServer {
     private org.slf4j.Logger nifiLogger = null;
 
     public QuicServer(String certificatePath, String keyPath, int connectionPort, String protocolName,
-                      boolean logPackets, org.slf4j.Logger logger) {
+                      boolean logPackets, org.slf4j.Logger logger, int maxStreams) {
         this.certificatePath = certificatePath;
         this.keyPath = keyPath;
         this.connectionPort = connectionPort;
         this.protocolName = protocolName;
         this.logPackets = logPackets;
         this.nifiLogger = logger;
+        this.maxStreams = maxStreams;
     }
 
     public void setFactoryRef(AtomicReference<ProcessSessionFactory> factoryRef){
@@ -58,7 +60,7 @@ public class QuicServer {
         log.logInfo(true);
 
         ServerConnectionConfig serverConnectionConfig = ServerConnectionConfig.builder()
-                .maxOpenPeerInitiatedBidirectionalStreams(50)  // Mandatory setting to maximize concurrent streams on a connection.
+                .maxOpenPeerInitiatedBidirectionalStreams(this.maxStreams)  // Mandatory setting to maximize concurrent streams on a connection.
                 .build();
 
         this.serverConnector = ServerConnector.builder()

@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 public class FrameTest {
 
     protected byte[] getBytes(QuicFrame frame) {
-        ByteBuffer buffer = ByteBuffer.allocate(1500);
+        ByteBuffer buffer = ByteBuffer.allocate(9000);
         frame.serialize(buffer);
         buffer.flip();
         byte[] data = new byte[buffer.remaining()];

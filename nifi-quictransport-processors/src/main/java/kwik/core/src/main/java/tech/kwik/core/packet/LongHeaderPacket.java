@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 // https://tools.ietf.org/html/draft-ietf-quic-transport-16#section-17.2
 public abstract class LongHeaderPacket extends QuicPacket {
 
-    private static final int MAX_PACKET_SIZE = 1500;
+    private static final int MAX_PACKET_SIZE = 9000;
     // Minimal length for a valid packet:  type version dcid len dcid scid len scid length packet number payload
     private static int MIN_PACKET_LENGTH = 1 +  4 +     1 +      0 +  1 +      0 +  1 +    1 +    1;
 

@@ -89,15 +89,14 @@ public class QuicTransportSender extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
-//    public static final PropertyDescriptor MTU = new PropertyDescriptor
-//            .Builder().name("MTU")
-//            .displayName("MTU / Packet Size")
-//            .description("Value should be as high as the destination allows e.g. 8400. " +
-//                    "1252 is the IPv4 default. 1232 for IPv6.")
-//            .required(true)
-//            .defaultValue("1252")
-//            .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
-//            .build();
+    public static final PropertyDescriptor MTU = new PropertyDescriptor
+            .Builder().name("MTU")
+            .displayName("MTU / Packet Size")
+            .description("-1 will use default. Value should be as high as the destination allows e.g. 8400.")
+            .required(true)
+            .defaultValue("-1")
+            .addValidator(StandardValidators.INTEGER_VALIDATOR)
+            .build();
 
     public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
@@ -118,6 +117,7 @@ public class QuicTransportSender extends AbstractProcessor {
         descriptors = new ArrayList<>();
         descriptors.add(URI);
         descriptors.add(PORT);
+        descriptors.add(MTU);
         descriptors.add(CERT_CHECK);
         descriptors.add(PROTOCOL);
         descriptors = Collections.unmodifiableList(descriptors);
@@ -144,9 +144,10 @@ public class QuicTransportSender extends AbstractProcessor {
             logger.info("Quic client null. Trying to initialise.");
             String uri = context.getProperty(URI).getValue();
             int port = context.getProperty(PORT).asInteger();
+            int mtu = context.getProperty(MTU).asInteger();
             String proto = context.getProperty(PROTOCOL).getValue();
             boolean certCheck = context.getProperty(CERT_CHECK).asBoolean();
-            this.qtc = new QuicClient(uri, port, proto, LOG_PACKETS, certCheck);
+            this.qtc = new QuicClient(uri, port, proto, LOG_PACKETS, certCheck, mtu);
             try {
                 this.qtc.init();
                 logger.info("Quic client initialised.");

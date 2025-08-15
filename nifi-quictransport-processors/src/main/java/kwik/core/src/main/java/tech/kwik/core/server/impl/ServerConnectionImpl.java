@@ -127,8 +127,9 @@ public class ServerConnectionImpl extends QuicConnectionImpl implements ServerCo
     public ServerConnectionImpl(Version originalVersion, DatagramSocket serverSocket, InetSocketAddress initialClientAddress,
                                 byte[] peerCid, byte[] originalDcid, CryptoStream cryptoStream, TlsServerEngineFactory tlsServerEngineFactory,
                                 ServerConnectionConfig configuration, ApplicationProtocolRegistry applicationProtocolRegistry,
-                                ServerConnectionRegistry connectionRegistry, Consumer<ServerConnectionImpl> closeCallback, Logger log) {
-        super(originalVersion, Role.Server, null, new LogProxy(log, originalDcid), configuration);
+                                ServerConnectionRegistry connectionRegistry, Consumer<ServerConnectionImpl> closeCallback, Logger log,
+                                int forcedMTUSize) {
+        super(originalVersion, Role.Server, null, new LogProxy(log, originalDcid), configuration, forcedMTUSize);
         this.originalVersion = originalVersion;
         this.initialClientAddress = initialClientAddress;
         usingIPv4 = InetTools.isIPv4(initialClientAddress.getAddress());

@@ -38,7 +38,7 @@ import java.util.function.Predicate;
  */
 public class Receiver {
 
-    public static final int MAX_DATAGRAM_SIZE = 1500;
+    public static final int MAX_DATAGRAM_SIZE = 9000;
 
     private volatile DatagramSocket socket;
     private final Logger log;

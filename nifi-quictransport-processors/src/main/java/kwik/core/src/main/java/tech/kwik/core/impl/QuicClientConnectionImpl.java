@@ -95,7 +95,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
     public static final long DEFAULT_CONNECT_TIMEOUT_IN_MILLIS = 10_000;
     public static final int DEFAULT_MAX_IDLE_TIMEOUT = 60_000;
     public static final int MIN_MAX_IDLE_TIMEOUT = 10;
-    public static final int MIN_RECEIVER_BUFFER_SIZE = 1500;
+    public static final int MIN_RECEIVER_BUFFER_SIZE = 9000;
     public static final long DEFAULT_MAX_STREAM_DATA = 250_000;
     public static final int MAX_DATA_FACTOR = 10;
     public static final int MAX_OPEN_PEER_INITIATED_BIDI_STREAMS = 3;
@@ -161,8 +161,8 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
                                      String proxyHost, Path secretsFile, Integer initialRtt, Integer cidLength,
                                      List<TlsConstants.CipherSuite> cipherSuites,
                                      X509Certificate clientCertificate, PrivateKey clientCertificateKey,
-                                     DatagramSocketFactory socketFactory) throws UnknownHostException, SocketException {
-        super(originalVersion, Role.Client, secretsFile, log, connectionProperties);
+                                     DatagramSocketFactory socketFactory, int forcedMTUSize) throws UnknownHostException, SocketException {
+        super(originalVersion, Role.Client, secretsFile, log, connectionProperties, forcedMTUSize);
         this.applicationProtocol = applicationProtocol;
         this.connectTimeout = connectTimeout;
         this.connectionProperties = connectionProperties;
@@ -1389,6 +1389,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
         private KeyStore keyManager;
         private String keyPassword;
         private boolean enableDatagramExtension;
+        private int forcedMTU = -1;
 
         private BuilderImpl() {
             connectionProperties.setMaxIdleTimeout(DEFAULT_MAX_IDLE_TIMEOUT);
@@ -1402,8 +1403,9 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
         }
 
         @Override
-        public QuicClientConnectionImpl build() throws SocketException, UnknownHostException {
+        public QuicClientConnectionImpl build(int mtu) throws SocketException, UnknownHostException {
             checkBuilderArguments();
+            this.forcedMTU = mtu;
 
             if (cipherSuites.isEmpty()) {
                 cipherSuites.add(TlsConstants.CipherSuite.TLS_AES_128_GCM_SHA256);
@@ -1412,7 +1414,7 @@ public class QuicClientConnectionImpl extends QuicConnectionImpl implements Quic
             QuicClientConnectionImpl quicConnection =
                     new QuicClientConnectionImpl(host, port, ipVersionOption, applicationProtocol, connectTimeoutInMillis, connectionProperties, sessionTicket, Version.of(quicVersion),
                             Version.of(preferredVersion), log, proxyHost, secretsFile, initialRtt, connectionIdLength,
-                            cipherSuites, clientCertificate, clientCertificateKey, socketFactory);
+                            cipherSuites, clientCertificate, clientCertificateKey, socketFactory, forcedMTU);
 
             if (omitCertificateCheck) {
                 quicConnection.trustAnyServerCertificate();

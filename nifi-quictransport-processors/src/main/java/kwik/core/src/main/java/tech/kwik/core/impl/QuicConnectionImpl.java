@@ -143,13 +143,15 @@ public abstract class QuicConnectionImpl implements QuicConnection, PacketProces
     private volatile int maxDatagramFrameSize;
     private volatile Consumer<byte[]> datagramHandler;
     private volatile ExecutorService datagramHandlerExecutor;
+    private volatile int forcedMTUSize = -1;
 
 
-    protected QuicConnectionImpl(Version originalVersion, Role role, Path secretsFile, Logger log, ConnectionConfig settings) {
+    protected QuicConnectionImpl(Version originalVersion, Role role, Path secretsFile, Logger log, ConnectionConfig settings, int forcedMTUSize) {
         this.quicVersion = new VersionHolder(originalVersion);
         this.role = role;
         this.log = log;
         useStrictSmallestAllowedMaximumDatagramSize = settings != null? settings.useStrictSmallestAllowedMaximumDatagramSize(): false;
+        this.forcedMTUSize = forcedMTUSize;
 
         processorChain = createProcessorChain();
 
@@ -848,6 +850,9 @@ public abstract class QuicConnectionImpl implements QuicConnection, PacketProces
     public abstract void abortConnection(Throwable error);
 
     public int getMaxPacketSize() {
+        if (forcedMTUSize != -1){
+            return forcedMTUSize;
+        }
         if (useStrictSmallestAllowedMaximumDatagramSize) {
             // https://www.rfc-editor.org/rfc/rfc9000.html#section-14.2
             // "An endpoint SHOULD use DPLPMTUD (Section 14.3) or PMTUD (Section 14.2.1) to determine whether the path

@@ -88,6 +88,15 @@ public class QuicTransportReceiver extends AbstractSessionFactoryProcessor {
             .description("Received FlowFiles are routed here.")
             .build();
 
+    public static final PropertyDescriptor MAX_STREAMS = new PropertyDescriptor
+            .Builder().name("MAX_STREAMS")
+            .displayName("Max Input Streams")
+            .description("Maximum number of input handlers at once.")
+            .required(true)
+            .defaultValue("100")
+            .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
+            .build();
+
     private List<PropertyDescriptor> descriptors;
 
     private Set<Relationship> relationships;
@@ -99,6 +108,7 @@ public class QuicTransportReceiver extends AbstractSessionFactoryProcessor {
         descriptors.add(PROTOCOL);
         descriptors.add(CERT_PATH);
         descriptors.add(KEY_PATH);
+        descriptors.add(MAX_STREAMS);
         descriptors = Collections.unmodifiableList(descriptors);
 
         relationships = new HashSet<>();
@@ -121,10 +131,11 @@ public class QuicTransportReceiver extends AbstractSessionFactoryProcessor {
         if(this.qts == null){
             logger.info("Quic server null. Trying to initialise.");
             int port = context.getProperty(PORT).asInteger();
+            int maxStreams = context.getProperty(MAX_STREAMS).asInteger();
             String proto = context.getProperty(PROTOCOL).getValue();
             String certPath = context.getProperty(CERT_PATH).getValue();
             String keyPath = context.getProperty(KEY_PATH).getValue();
-            this.qts = new QuicServer(certPath, keyPath, port, proto, LOG_PACKETS, logger);
+            this.qts = new QuicServer(certPath, keyPath, port, proto, LOG_PACKETS, logger, maxStreams);
             this.qts.setFactoryRef(this.sessionFactoryReference);
             try {
                 this.qts.init();
