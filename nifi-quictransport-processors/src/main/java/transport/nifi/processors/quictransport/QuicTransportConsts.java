@@ -10,4 +10,5 @@ public class QuicTransportConsts {
                                                             114, 118, 101, 114, 97, 99, 107 };
     public static final long MAX_V1_SIZE = Long.MAX_VALUE; // 20Mb
     public static final int V1_HASH_SIZE = 32; // Sha256
+    public static final int BUFFER_SIZE = 1024*1024 * 1; // 1mb //131072; // 128k
 }

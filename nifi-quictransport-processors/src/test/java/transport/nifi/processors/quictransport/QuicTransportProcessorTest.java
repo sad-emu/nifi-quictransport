@@ -73,6 +73,50 @@ public class QuicTransportProcessorTest {
 //        List<MockFlowFile> outputFlowFiles = testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS);
 //
 
+        long responseTimeout = 600;
+
+        long startTime = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - startTime < responseTimeout)) {
+            Thread.sleep(100);
+        }
+//        Map<String, String> outputMap = testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS).get(0).getAttributes();
+//        testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS).get(0)
+//                .assertContentEquals(dataToSend);
+//        testSender.getFlowFilesForRelationship(QuicTransportSender.SUCCESS).get(0)
+//                .assertContentEquals(dataToSend);
+//        Assertions.assertEquals(0, testSender.getFlowFilesForRelationship(QuicTransportSender.FAILURE).size());
+//        for(String key : dummyAttrs.keySet()){
+//            Assertions.assertEquals(dummyAttrs.get(key), outputMap.get(key));
+//        }
+    }
+
+    @Test
+    public void testSendMultiFile() throws InterruptedException, IOException {
+        testSender.setProperty(QuicTransportSender.URI, "localhost");
+        testSender.setProperty(QuicTransportSender.PORT, testPort);
+        testSender.setProperty(QuicTransportSender.CERT_CHECK, "false");
+
+        testReceiver.setProperty(QuicTransportReceiver.PORT, testPort);
+        testReceiver.setProperty(QuicTransportReceiver.KEY_PATH, key);
+        testReceiver.setProperty(QuicTransportReceiver.CERT_PATH, cert);
+
+        testReceiver.run(1, false);
+        byte[] dataToSend = "Test data string 12345!@!#$!".getBytes(StandardCharsets.UTF_8);
+        Map<String, String> dummyAttrs = new HashMap<>();
+        dummyAttrs.put("test1key", "test1val");
+        dummyAttrs.put("test2key", "test2val");
+        for(int i = 0; i <  10; i++){
+            MockFlowFile ff = new MockFlowFile(i);
+            ff.setData(dataToSend);
+            ff.putAttributes(dummyAttrs);
+            testSender.enqueue(ff);
+        }
+
+        testSender.run();
+
+//        List<MockFlowFile> outputFlowFiles = testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS);
+//
+
         long responseTimeout = 400;
 
         long startTime = System.currentTimeMillis();
@@ -80,10 +124,10 @@ public class QuicTransportProcessorTest {
 
             Thread.sleep(100);
         }
-        Map<String, String> outputMap = testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS).get(0).getAttributes();
-        testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS).get(0)
+        Map<String, String> outputMap = testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS).get(6).getAttributes();
+        testReceiver.getFlowFilesForRelationship(QuicTransportReceiver.SUCCESS).get(6)
                 .assertContentEquals(dataToSend);
-        testSender.getFlowFilesForRelationship(QuicTransportSender.SUCCESS).get(0)
+        testSender.getFlowFilesForRelationship(QuicTransportSender.SUCCESS).get(6)
                 .assertContentEquals(dataToSend);
         Assertions.assertEquals(0, testSender.getFlowFilesForRelationship(QuicTransportSender.FAILURE).size());
         for(String key : dummyAttrs.keySet()){

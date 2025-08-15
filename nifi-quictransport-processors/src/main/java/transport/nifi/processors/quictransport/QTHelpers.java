@@ -170,7 +170,7 @@ public class QTHelpers {
         long payloadLen = readLong(netStream);;
 
         flowFile = session.write(flowFile, out -> {
-            byte[] buffer = new byte[40960];
+            byte[] buffer = new byte[QuicTransportConsts.BUFFER_SIZE];
             long amountRead = 0;
             while(amountRead < payloadLen){
                 if(amountRead + buffer.length > payloadLen){

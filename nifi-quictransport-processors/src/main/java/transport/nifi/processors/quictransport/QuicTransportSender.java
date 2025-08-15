@@ -51,7 +51,7 @@ public class QuicTransportSender extends AbstractProcessor {
 
     private static final Logger logger = LoggerFactory.getLogger(QuicTransportSender.class);
 
-    private QuicClient qtc = null;
+    //private QuicClient qtc = null;
     private static final boolean LOG_PACKETS = false;
 
     public static final PropertyDescriptor URI = new PropertyDescriptor
@@ -98,6 +98,15 @@ public class QuicTransportSender extends AbstractProcessor {
             .addValidator(StandardValidators.INTEGER_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor BATCH_SIZE = new PropertyDescriptor
+            .Builder().name("BATCH_SIZE")
+            .displayName("Batch Size")
+            .description("Number of files to send in a single connection. This should be changed to size.")
+            .required(true)
+            .defaultValue("100")
+            .addValidator(StandardValidators.INTEGER_VALIDATOR)
+            .build();
+
     public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
             .description("Files which have been sent to a receiver are routed to this relationship.")
@@ -120,6 +129,7 @@ public class QuicTransportSender extends AbstractProcessor {
         descriptors.add(MTU);
         descriptors.add(CERT_CHECK);
         descriptors.add(PROTOCOL);
+        descriptors.add(BATCH_SIZE);
         descriptors = Collections.unmodifiableList(descriptors);
 
         relationships = new HashSet<>();
@@ -138,37 +148,50 @@ public class QuicTransportSender extends AbstractProcessor {
         return descriptors;
     }
 
+    private QuicClient buildQt(final ProcessContext context){
+        logger.info("Quic client null. Trying to initialise.");
+        String uri = context.getProperty(URI).getValue();
+        int port = context.getProperty(PORT).asInteger();
+        int mtu = context.getProperty(MTU).asInteger();
+        String proto = context.getProperty(PROTOCOL).getValue();
+        boolean certCheck = context.getProperty(CERT_CHECK).asBoolean();
+        QuicClient qt = new QuicClient(uri, port, proto, LOG_PACKETS, certCheck, mtu, logger);
+        try {
+            qt.init();
+            logger.info("Quic client initialised.");
+            return qt;
+        } catch (Exception exc){
+            logger.warn("Exception thrown trying to init quic client. " + exc.getMessage());
+        }
+        return null;
+    }
+
     @OnScheduled
     public void onScheduled(final ProcessContext context) {
-        if(this.qtc == null){
-            logger.info("Quic client null. Trying to initialise.");
-            String uri = context.getProperty(URI).getValue();
-            int port = context.getProperty(PORT).asInteger();
-            int mtu = context.getProperty(MTU).asInteger();
-            String proto = context.getProperty(PROTOCOL).getValue();
-            boolean certCheck = context.getProperty(CERT_CHECK).asBoolean();
-            this.qtc = new QuicClient(uri, port, proto, LOG_PACKETS, certCheck, mtu);
-            try {
-                this.qtc.init();
-                logger.info("Quic client initialised.");
-            } catch (Exception exc){
-                logger.warn("Exception thrown trying to init quic client. " + exc.getMessage());
-            }
-        }
+        //if(this.qtc == null){
+            // Till i fix threading
+            //this.qtc = buildQt(context);
+        //}
     }
 
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) {
-        FlowFile flowFile = session.get();
-        if (flowFile == null) {
+        final int batchSize = context.getProperty(BATCH_SIZE).asInteger();
+        List<FlowFile> flowFiles = session.get(batchSize);
+        List<FlowFile> success = new ArrayList<>();
+        List<FlowFile> failures = new ArrayList<>();
+        if (flowFiles.isEmpty()) {
             return;
         }
+        // Threading isn't working as expected and the connections seem to be cheap.
+        QuicClient qt = buildQt(context);
+        // TODO need to report which ones were successful from send
         try {
-            qtc.send(flowFile, session);
-            session.transfer(flowFile, SUCCESS);
+            qt.send(flowFiles, session, success, failures);
         } catch (IOException e) {
             logger.error("Exception in QuicTransportSender onTrigger: " + e);
-            session.transfer(flowFile, FAILURE);
         }
+        //session.transfer(success, SUCCESS);
+        session.transfer(failures, FAILURE);
     }
 }

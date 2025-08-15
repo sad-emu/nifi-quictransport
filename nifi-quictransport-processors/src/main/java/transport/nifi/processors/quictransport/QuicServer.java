@@ -3,6 +3,7 @@ package transport.nifi.processors.quictransport;
 import kwik.core.src.main.java.tech.kwik.core.QuicConnection;
 import kwik.core.src.main.java.tech.kwik.core.QuicStream;
 import kwik.core.src.main.java.tech.kwik.core.log.Logger;
+import kwik.core.src.main.java.tech.kwik.core.log.NullLogger;
 import kwik.core.src.main.java.tech.kwik.core.log.SysOutLogger;
 import kwik.core.src.main.java.tech.kwik.core.server.ApplicationProtocolConnection;
 import kwik.core.src.main.java.tech.kwik.core.server.ApplicationProtocolConnectionFactory;
@@ -22,6 +23,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -54,10 +57,10 @@ public class QuicServer {
 
     public void init() throws Exception {
 
-        Logger log = new SysOutLogger();
+        Logger log = new NullLogger();
         log.timeFormat(Logger.TimeFormat.Long);
-        log.logWarning(true);
-        log.logInfo(true);
+        log.logWarning(false);
+        log.logInfo(false);
 
         ServerConnectionConfig serverConnectionConfig = ServerConnectionConfig.builder()
                 .maxOpenPeerInitiatedBidirectionalStreams(this.maxStreams)  // Mandatory setting to maximize concurrent streams on a connection.
@@ -127,6 +130,7 @@ public class QuicServer {
         private Logger log;
         private AtomicReference<ProcessSessionFactory> factoryRef = null;
         private org.slf4j.Logger nifiLogger = null;
+        private final ExecutorService streamExecutor = Executors.newFixedThreadPool(100);
 
         public EchoProtocolConnection(QuicConnection quicConnection, Logger log,
                                       AtomicReference<ProcessSessionFactory> factoryRef,
@@ -139,7 +143,9 @@ public class QuicServer {
         @Override
         public void acceptPeerInitiatedStream(QuicStream quicStream) {
             // Need to handle incoming stream on separate thread; using a thread pool is recommended.
-            new Thread(() -> handleEchoRequest(quicStream, factoryRef, nifiLogger)).start();
+            streamExecutor.submit(() -> {
+                handleEchoRequest(quicStream, factoryRef, nifiLogger);
+            });
         }
 
         private void handleEchoRequest(QuicStream quicStream, AtomicReference<ProcessSessionFactory> factoryRef,
@@ -157,61 +163,55 @@ public class QuicServer {
             } while (sessionFactory == null);
 
             final ProcessSession session = sessionFactory.createSession();
-            FlowFile flowFile = null;
 
             try {
                 byte[] connectionHeader = new byte[2];
                 int amountRead = quicStream.getInputStream().read(connectionHeader);
+                while(amountRead != -1){
 
-                if(amountRead != 2){
-                    String readFailure = "Header bytes are not in valid V1 range.";
-                    if(nifiLogger != null)
-                        nifiLogger.error(readFailure);
-                    throw new IOException(readFailure);
-                }
+                    if (amountRead != 2) {
+                        String readFailure = "Header bytes are not in valid V1 range.";
+                        if (nifiLogger != null)
+                            nifiLogger.error(readFailure);
+                        throw new IOException(readFailure);
+                    }
 
-                if (QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_DATA_HEADER)) {
-                    flowFile = session.create();
-                    byte[] generatedHash = QTHelpers.deserializeFlowFile(session, flowFile, quicStream.getInputStream());
+                    if (QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_DATA_HEADER)) {
+                        FlowFile flowFile = session.create();
+                        byte[] generatedHash = QTHelpers.deserializeFlowFile(session, flowFile, quicStream.getInputStream());
 
-                    byte[] hashBytes = new byte[QuicTransportConsts.V1_HASH_SIZE];
-                    int hashBytesRead = quicStream.getInputStream().read(hashBytes);
-                    if(hashBytesRead != QuicTransportConsts.V1_HASH_SIZE){
-                        String hashFailure = "Did not receive full hash after payload body.";
-                        if(nifiLogger != null)
+                        byte[] hashBytes = new byte[QuicTransportConsts.V1_HASH_SIZE];
+                        int hashBytesRead = quicStream.getInputStream().read(hashBytes);
+                        if (hashBytesRead != QuicTransportConsts.V1_HASH_SIZE) {
+                            String hashFailure = "Did not receive full hash after payload body.";
                             nifiLogger.error(hashFailure);
-                        throw new IOException(hashFailure);
-                    }
+                            throw new IOException(hashFailure);
+                        }
 
-                    boolean written = false;
-                    if(nifiLogger != null)
+                        boolean written = false;
                         nifiLogger.debug("About to process incoming bytes.");
-                    if(QTHelpers.bytesMatch(generatedHash, hashBytes)){
-                        if(nifiLogger != null)
+                        if (QTHelpers.bytesMatch(generatedHash, hashBytes)) {
                             nifiLogger.debug("Creating flowfile for incoming bytes.");
-
-                        // Java is wild
-                        session.transfer(flowFile, QuicTransportReceiver.SUCCESS);
-                        session.commit();
-                        if(nifiLogger != null)
+                            // Java is wild
+                            session.transfer(flowFile, QuicTransportReceiver.SUCCESS);
+                            session.commit();
                             nifiLogger.debug("Created flowfile sucessfully committed.");
-                        written = true;
-                    }
+                            written = true;
+                        }
 
-                    if(written){
-                        if(nifiLogger != null)
+                        if (written) {
                             nifiLogger.debug("Attempting to respond with completed hash.");
-                        // Return bytes regardless
-                        quicStream.getOutputStream().write(generatedHash);
-                        if(nifiLogger != null)
+                            // Return bytes regardless
+                            quicStream.getOutputStream().write(generatedHash);
                             nifiLogger.debug("Completed hash sent.");
+                        }
                     }
+                    amountRead = quicStream.getInputStream().read(connectionHeader);
                 }
 
             } catch (IOException e) {
                 log.error("Reading quic stream failed", e);
-                if(nifiLogger != null)
-                    nifiLogger.debug("Reading quic stream failed", e);
+                nifiLogger.debug("Reading quic stream failed", e);
             } catch (NoSuchAlgorithmException e) {
                 // It's borked if we get here
                 throw new RuntimeException(e);
