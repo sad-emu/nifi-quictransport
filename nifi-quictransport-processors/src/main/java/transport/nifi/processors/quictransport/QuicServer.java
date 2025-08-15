@@ -157,7 +157,6 @@ public class QuicServer {
             final ProcessSession session = sessionFactory.createSession();
             FlowFile flowFile = null;
 
-            byte[] payloadBytes = null;
             try {
                 byte[] connectionHeader = new byte[2];
                 int amountRead = quicStream.getInputStream().read(connectionHeader);
@@ -170,48 +169,25 @@ public class QuicServer {
                 }
 
                 if (QTHelpers.bytesMatch(connectionHeader, QuicTransportConsts.PROTOCOL_V1_DATA_HEADER)) {
-                    byte[] intHeader = new byte[4];
-                    // Note that this implementation is not safe to use in the wild, as attackers can crash the server by sending arbitrary large requests.
-                    amountRead = quicStream.getInputStream().read(intHeader);
-                    if(amountRead != 4){
-                        String headerFailure = "Stream failed to provide header bytes.";
-                        if(nifiLogger != null)
-                            nifiLogger.error(headerFailure);
-                        throw new IOException(headerFailure);
-                    }
-                    int payloadSize = QTHelpers.bytesToInt(intHeader);
-                    if(payloadSize <= 0 || payloadSize > QuicTransportConsts.MAX_V1_SIZE){
-                        String headerFailure = "Header bytes are not in valid V1 range.";
-                        if(nifiLogger != null)
-                            nifiLogger.error(headerFailure);
-                        throw new IOException(headerFailure);
-                    }
-                    payloadBytes = new byte[payloadSize];
-                    int bytesRead = quicStream.getInputStream().read(payloadBytes);
-                    if(bytesRead != payloadSize){
-                        String readFailure = "Did not receive full bytes in payload body.";
-                        if(nifiLogger != null)
-                            nifiLogger.error(readFailure);
-                        throw new IOException(readFailure);
-                    }
+                    flowFile = session.create();
+                    byte[] generatedHash = QTHelpers.deserializeFlowFile(session, flowFile, quicStream.getInputStream());
+
                     byte[] hashBytes = new byte[QuicTransportConsts.V1_HASH_SIZE];
-                    bytesRead = quicStream.getInputStream().read(hashBytes);
-                    if(bytesRead != QuicTransportConsts.V1_HASH_SIZE){
+                    int hashBytesRead = quicStream.getInputStream().read(hashBytes);
+                    if(hashBytesRead != QuicTransportConsts.V1_HASH_SIZE){
                         String hashFailure = "Did not receive full hash after payload body.";
                         if(nifiLogger != null)
                             nifiLogger.error(hashFailure);
                         throw new IOException(hashFailure);
                     }
-                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                    byte[] generatedHash = digest.digest(payloadBytes);
+
                     boolean written = false;
                     if(nifiLogger != null)
                         nifiLogger.debug("About to process incoming bytes.");
                     if(QTHelpers.bytesMatch(generatedHash, hashBytes)){
                         if(nifiLogger != null)
                             nifiLogger.debug("Creating flowfile for incoming bytes.");
-                        flowFile = session.create();
-                        QTHelpers.deserializeFlowFile(session, flowFile, payloadBytes);
+
                         // Java is wild
                         session.transfer(flowFile, QuicTransportReceiver.SUCCESS);
                         session.commit();

@@ -163,8 +163,7 @@ public class QuicTransportSender extends AbstractProcessor {
             return;
         }
         try {
-            byte[] serialisedFile = QTHelpers.serializeFlowFile(session, flowFile);
-            qtc.send(serialisedFile);
+            qtc.send(flowFile, session);
             session.transfer(flowFile, SUCCESS);
         } catch (IOException e) {
             logger.error("Exception in QuicTransportSender onTrigger: " + e);

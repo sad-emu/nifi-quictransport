@@ -8,6 +8,6 @@ public class QuicTransportConsts {
                                                             108, 105, 101, 110, 116, 104, 101, 108, 108, 111 };
     public static final byte[] PROTOCOL_V1_SERVER_HELLO_ACK = { 113, 116, 112, 114, 111, 116, 111, 118, 49, 115, 101,
                                                             114, 118, 101, 114, 97, 99, 107 };
-    public static final int MAX_V1_SIZE = 20971520; // 20Mb
+    public static final long MAX_V1_SIZE = Long.MAX_VALUE; // 20Mb
     public static final int V1_HASH_SIZE = 32; // Sha256
 }

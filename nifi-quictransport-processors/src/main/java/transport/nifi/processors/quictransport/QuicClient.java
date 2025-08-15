@@ -5,8 +5,12 @@ import kwik.core.src.main.java.tech.kwik.core.QuicStream;
 import kwik.core.src.main.java.tech.kwik.core.log.Logger;
 import kwik.core.src.main.java.tech.kwik.core.log.NullLogger;
 import kwik.core.src.main.java.tech.kwik.core.log.SysOutLogger;
+import org.apache.nifi.flowfile.FlowFile;
+import org.apache.nifi.processor.ProcessSession;
+import org.apache.nifi.processor.io.InputStreamCallback;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.SocketException;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -126,22 +130,42 @@ public class QuicClient {
 //    }
 
     // TODO update to streams
-    public void send(byte[] payload) throws IOException {
+    public void send(FlowFile payload, final ProcessSession session) throws IOException {
         if(!reconnected()){
             throw new IOException("Could not connect to endpoint");
         }
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] expectedHash = digest.digest(payload);
-            if(expectedHash.length != QuicTransportConsts.V1_HASH_SIZE){
-                throw new IOException("Sending hash is the wrong number of bytes for V1");
-            }
+            //byte[] expectedHash = digest.digest(payload);
+//            if(expectedHash.length != QuicTransportConsts.V1_HASH_SIZE){
+//                throw new IOException("Sending hash is the wrong number of bytes for V1");
+//            }
             QuicStream quicStream = connection.createStream(true);
-            byte[] dataLenBytes = QTHelpers.intToBytes(payload.length);
+
             quicStream.getOutputStream().write(QuicTransportConsts.PROTOCOL_V1_DATA_HEADER);
-            quicStream.getOutputStream().write(dataLenBytes);
-            quicStream.getOutputStream().write(payload);
+
+            byte[] flowfileAttributes = QTHelpers.serialiseFlowFileAttributes(payload);
+            long attributesLen = flowfileAttributes.length;
+            byte[] attributesLenBytes = QTHelpers.longToBytes(attributesLen);
+            quicStream.getOutputStream().write(attributesLenBytes);
+
+            quicStream.getOutputStream().write(flowfileAttributes);
+
+            long payloadLen = payload.getSize();
+            byte[] payloadLenBytes = QTHelpers.longToBytes(payloadLen);
+            quicStream.getOutputStream().write(payloadLenBytes);
+
+            session.read(payload, in -> {
+                byte[] buffer = new byte[40960];
+                int len;
+                while ((len = in.read(buffer)) != -1) {
+                    digest.update(buffer, 0, len);
+                    quicStream.getOutputStream().write(buffer, 0, len);
+                }
+            });
+
+            byte[] expectedHash = digest.digest();
             quicStream.getOutputStream().write(expectedHash);
             quicStream.getOutputStream().close();
 
