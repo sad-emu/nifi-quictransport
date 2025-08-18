@@ -44,7 +44,7 @@ public class LossDetector {
     private final Runnable postProcessLostCallback;
     private final QLog qLog;
     private final float kTimeThreshold = 9f/8f;
-    private final int kPacketThreshold = 3;
+    private final int kPacketThreshold = 10; // TODO verify this is OK
     private final Map<Long, PacketStatus> packetSentLog;
     private final AtomicInteger ackElicitingInFlight;
     private volatile long largestAcked = -1;

@@ -29,7 +29,8 @@ public class AbstractCongestionController implements CongestionController {
     // https://tools.ietf.org/html/draft-ietf-quic-recovery-23#appendix-B.1
     // "The RECOMMENDED value is the minimum of 10 * kMaxDatagramSize and max(2* kMaxDatagramSize, 14600))."
     // "kMaxDatagramSize: The RECOMMENDED value is 1200 bytes."
-    protected static final int initialWindowSize = 10 * 1200;
+    // Edit: Above is simply too slow for the throughput we want
+    protected static final int initialWindowSize = 300 * 9000; // TODO verify this is OK
 
     protected final Logger log;
     protected volatile long bytesInFlight;
